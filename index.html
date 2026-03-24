@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CodeScan — Find Bugs Before They Find You</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+/* ════ THEME SYSTEM ════ */
+:root {
+  --bg:#050a0f; --surface:#0b1420; --surface2:#0f1e2e; --border:#1a3a5c;
+  --accent:#00d4ff; --accent2:#ff4c6a; --accent3:#39ff14;
+  --text:#c8dff0; --muted:#4a7090; --strong:#ffffff;
+  --card-bg:#0b1420; --input-bg:#020c14;
+  --shadow: 0 8px 40px rgba(0,0,0,.5);
+  --mono:'Share Tech Mono',monospace; --display:'Bebas Neue',sans-serif; --body:'DM Sans',sans-serif;
+}
+[data-theme="light"] {
+  --bg:#f0f4f8; --surface:#ffffff; --surface2:#e8eef5; --border:#c5d5e8;
+  --accent:#0076a8; --accent2:#d1003c; --accent3:#1a7a00;
+  --text:#1a2a3a; --muted:#6a8aaa; --strong:#0a0f14;
+  --card-bg:#ffffff; --input-bg:#f5f9ff;
+  --shadow: 0 8px 40px rgba(0,100,160,.1);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:var(--body);font-weight:300;overflow-x:hidden;transition:background .3s,color .3s;}
+
+/* Noise overlay - dark only */
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;transition:opacity .3s;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");}
+[data-theme="light"] body::before{opacity:.15;}
+
+body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;transition:opacity .3s;
+  background-image:linear-gradient(rgba(0,212,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.03) 1px,transparent 1px);
+  background-size:60px 60px;}
+[data-theme="light"] body::after{background-image:linear-gradient(rgba(0,118,168,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,118,168,.04) 1px,transparent 1px);}
+
+.scanline{position:fixed;top:0;left:0;right:0;z-index:100;height:2px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  animation:scan 4s linear infinite;opacity:.4;pointer-events:none;}
+[data-theme="light"] .scanline{opacity:.2;}
+@keyframes scan{from{top:-2px;}to{top:100vh;}}
+section,header,footer{position:relative;z-index:1;}
+
+/* ════ HEADER ════ */
+header{border-bottom:1px solid var(--border);padding:0 clamp(1rem,4vw,3rem);
+  display:flex;align-items:center;justify-content:space-between;height:66px;
+  background:rgba(5,10,15,.88);backdrop-filter:blur(16px);
+  position:sticky;top:0;z-index:50;overflow:hidden;gap:1rem;transition:background .3s,border-color .3s;}
+[data-theme="light"] header{background:rgba(240,244,248,.92);}
+.logo{font-family:var(--display);font-size:1.9rem;letter-spacing:3px;color:var(--accent);
+  text-shadow:0 0 20px rgba(0,212,255,.6);flex-shrink:0;font-weight:400;}
+.logo span{color:var(--accent2);}
+[data-theme="light"] .logo{text-shadow:none;}
+
+/* MARQUEE */
+.marquee-wrap{flex:1;overflow:hidden;
+  mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);}
+.marquee-track{display:flex;gap:0;animation:mq 22s linear infinite;width:max-content;white-space:nowrap;align-items:center;}
+@keyframes mq{0%{transform:translateX(0);}100%{transform:translateX(-50%);}}
+.mq-item{display:inline-flex;align-items:center;gap:.5rem;padding:0 2rem;
+  font-family:var(--mono);font-size:.68rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted);}
+.mq-item .mq-leader{color:var(--accent2);font-weight:700;}
+.mq-item .mq-sep{color:var(--accent);opacity:.4;}
+
+.header-actions{display:flex;align-items:center;gap:.75rem;flex-shrink:0;}
+.badge{font-family:var(--mono);font-size:.62rem;color:var(--accent3);border:1px solid var(--accent3);
+  padding:3px 10px;letter-spacing:2px;animation:pulse-border 2s ease-in-out infinite;}
+@keyframes pulse-border{0%,100%{box-shadow:0 0 0 0 rgba(57,255,20,.3);}50%{box-shadow:0 0 0 6px rgba(57,255,20,0);}}
+
+/* THEME TOGGLE */
+.theme-toggle{width:42px;height:24px;border-radius:12px;background:var(--border);border:1px solid var(--border);
+  cursor:pointer;position:relative;transition:background .3s;flex-shrink:0;outline:none;}
+.theme-toggle::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;
+  background:var(--accent);transition:transform .3s,background .3s;}
+[data-theme="light"] .theme-toggle::after{transform:translateX(18px);background:var(--accent2);}
+.theme-toggle-wrap{display:flex;align-items:center;gap:.5rem;}
+.theme-lbl{font-family:var(--mono);font-size:.6rem;letter-spacing:2px;color:var(--muted);text-transform:uppercase;white-space:nowrap;}
+
+/* ════ HERO ════ */
+.hero{min-height:90vh;display:grid;place-items:center;
+  padding:clamp(3rem,10vw,8rem) clamp(1.5rem,5vw,4rem);text-align:center;position:relative;overflow:hidden;}
+.hero-glow{position:absolute;width:800px;height:800px;border-radius:50%;
+  background:radial-gradient(circle,rgba(0,212,255,.08) 0%,transparent 70%);
+  top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;transition:opacity .3s;}
+[data-theme="light"] .hero-glow{background:radial-gradient(circle,rgba(0,118,168,.06) 0%,transparent 70%);}
+.hero-tag{font-family:var(--mono);font-size:.78rem;color:var(--muted);letter-spacing:4px;
+  text-transform:uppercase;margin-bottom:1.5rem;animation:fadeUp .8s ease both;font-weight:500;}
+.hero h1{font-family:var(--display);font-size:clamp(4.5rem,13vw,10rem);line-height:.88;
+  letter-spacing:6px;color:var(--strong);text-shadow:0 0 60px rgba(0,212,255,.2);animation:fadeUp .9s ease .1s both;}
+[data-theme="light"] .hero h1{text-shadow:none;}
+.hero h1 .highlight{color:var(--accent);text-shadow:0 0 40px rgba(0,212,255,.7),0 0 80px rgba(0,212,255,.3);}
+[data-theme="light"] .hero h1 .highlight{text-shadow:none;}
+.hero-sub{font-family:var(--mono);font-size:clamp(.88rem,2vw,1.08rem);color:var(--muted);
+  max-width:560px;margin:2rem auto 0;line-height:1.75;animation:fadeUp 1s ease .25s both;}
+.hero-sub strong{color:var(--text);font-weight:700;}
+.hero-sub .ac2{color:var(--accent2);font-weight:700;}
+.cta-row{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-top:3rem;animation:fadeUp 1s ease .4s both;}
+.btn-p{font-family:var(--mono);font-size:.82rem;letter-spacing:2px;text-transform:uppercase;
+  padding:.95rem 2.6rem;background:var(--accent);color:var(--bg);border:none;cursor:pointer;
+  clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);transition:all .2s;font-weight:700;}
+.btn-p:hover{background:var(--strong);box-shadow:0 0 30px rgba(0,212,255,.5);transform:translateY(-2px);}
+.btn-s{font-family:var(--mono);font-size:.82rem;letter-spacing:2px;text-transform:uppercase;
+  padding:.95rem 2.6rem;background:transparent;color:var(--accent);border:2px solid var(--accent);cursor:pointer;
+  clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);transition:all .2s;font-weight:600;}
+.btn-s:hover{background:rgba(0,212,255,.1);transform:translateY(-2px);}
+
+/* ════ TICKER ════ */
+.ticker-wrap{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);overflow:hidden;padding:.65rem 0;transition:background .3s,border-color .3s;}
+.ticker{display:flex;gap:4rem;animation:ticker 25s linear infinite;white-space:nowrap;width:max-content;}
+@keyframes ticker{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+.ticker span{font-family:var(--mono);font-size:.72rem;letter-spacing:1px;font-weight:600;}
+.ticker .err{color:var(--accent2);}.ticker .ok{color:var(--accent3);}.ticker .warn{color:#ffb800;}
+
+/* ════ SECTIONS ════ */
+.section{padding:clamp(4rem,10vw,8rem) clamp(1.5rem,5vw,4rem);max-width:1200px;margin:0 auto;}
+.sec-lbl{font-family:var(--mono);font-size:.72rem;color:var(--accent);letter-spacing:4px;
+  text-transform:uppercase;margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;font-weight:600;}
+.sec-lbl::before{content:'//';color:var(--muted);}
+.sec-title{font-family:var(--display);font-size:clamp(2.8rem,6vw,5rem);letter-spacing:4px;color:var(--strong);line-height:.95;margin-bottom:1.5rem;}
+.sec-title .ac{color:var(--accent);}.sec-title .ac2{color:var(--accent2);}
+.sec-body{font-size:clamp(.92rem,1.5vw,1.08rem);color:var(--muted);line-height:1.85;max-width:640px;font-weight:400;}
+.divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);}
+@keyframes fadeUp{from{opacity:0;transform:translateY(28px);}to{opacity:1;transform:translateY(0);}}
+.reveal{opacity:0;transform:translateY(32px);transition:opacity .7s ease,transform .7s ease;}
+.reveal.visible{opacity:1;transform:none;}
+
+/* ════ SPLIT CARDS ════ */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin-top:3rem;}
+@media(max-width:700px){.split{grid-template-columns:1fr;}}
+.split-card{background:var(--card-bg);border:1px solid var(--border);padding:2.75rem;position:relative;transition:border-color .3s,background .3s;}
+.split-card:hover{border-color:var(--accent);}
+.split-card::before{content:attr(data-label);position:absolute;top:1.5rem;right:1.5rem;font-family:var(--mono);font-size:.62rem;letter-spacing:3px;opacity:.5;font-weight:700;}
+.split-card.prob::before{color:var(--accent2);}.split-card.sol::before{color:var(--accent3);}
+.split-card h3{font-family:var(--display);font-size:2rem;letter-spacing:3px;margin-bottom:1rem;}
+.split-card.prob h3{color:var(--accent2);}.split-card.sol h3{color:var(--accent3);}
+.split-card p{font-size:.97rem;line-height:1.78;color:var(--muted);}
+
+/* ════ FEATURES ════ */
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1px;margin-top:3rem;background:var(--border);}
+.feat-card{background:var(--card-bg);padding:2.75rem;position:relative;overflow:hidden;transition:background .3s;}
+.feat-card:hover{background:var(--surface2);}
+.feat-icon{font-size:2.2rem;margin-bottom:1.25rem;display:block;transition:transform .3s;filter:drop-shadow(0 0 8px rgba(0,212,255,.4));}
+.feat-card:hover .feat-icon{transform:scale(1.12);}
+.feat-card h4{font-family:var(--mono);font-size:.9rem;letter-spacing:2px;color:var(--accent);text-transform:uppercase;margin-bottom:.75rem;font-weight:700;}
+.feat-card p{font-size:.9rem;color:var(--muted);line-height:1.72;}
+.feat-num{position:absolute;bottom:1.5rem;right:1.5rem;font-family:var(--display);font-size:3.5rem;color:rgba(255,255,255,.04);}
+[data-theme="light"] .feat-num{color:rgba(0,0,0,.04);}
+
+/* ════ TECH ════ */
+.tech-section{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);transition:background .3s,border-color .3s;}
+.tech-grid{display:flex;flex-wrap:wrap;gap:1rem;margin-top:2.5rem;}
+.tech-pill{font-family:var(--mono);font-size:.75rem;letter-spacing:2px;text-transform:uppercase;
+  padding:.65rem 1.5rem;border:1px solid var(--border);color:var(--text);background:var(--bg);position:relative;overflow:hidden;transition:all .3s;cursor:default;font-weight:600;}
+.tech-pill:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ════ TERMINAL ════ */
+.terminal{background:#020c14;border:1px solid var(--border);font-family:var(--mono);font-size:.83rem;overflow:hidden;margin-top:3rem;}
+[data-theme="light"] .terminal{background:#f0f5fa;border-color:var(--border);}
+.term-bar{background:var(--surface2);border-bottom:1px solid var(--border);padding:.65rem 1rem;display:flex;align-items:center;gap:.5rem;}
+.dot{width:10px;height:10px;border-radius:50%;}.dot.r{background:#ff5f56;}.dot.y{background:#ffbd2e;}.dot.g{background:#27c93f;}
+.term-title{font-size:.65rem;color:var(--muted);letter-spacing:2px;margin-left:.5rem;font-weight:600;}
+.term-body{padding:1.5rem;line-height:2.1;}
+.tp{color:var(--accent3);font-weight:700;}.tc{color:var(--text);}.to{color:var(--muted);}.te{color:var(--accent2);font-weight:700;}.tok{color:var(--accent3);font-weight:600;}.ti{color:var(--accent);}
+.cursor{display:inline-block;width:8px;height:1em;background:var(--accent);vertical-align:text-bottom;animation:blink .8s step-end infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+
+/* ════ TEAM ════ */
+.team-card{display:inline-flex;align-items:center;gap:1.5rem;background:var(--card-bg);border:1px solid var(--border);padding:1.6rem 2.6rem;margin-top:2rem;position:relative;transition:border-color .3s,background .3s;}
+.team-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--accent),var(--accent2));}
+.avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-family:var(--display);font-size:1.5rem;color:var(--bg);flex-shrink:0;}
+.team-name{font-family:var(--display);font-size:1.5rem;letter-spacing:3px;color:var(--strong);}
+.team-role{font-family:var(--mono);font-size:.72rem;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-top:.25rem;font-weight:600;}
+
+/* ════ STATS ════ */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);margin-top:4rem;}
+.stat-box{background:var(--card-bg);padding:2.25rem;text-align:center;transition:background .3s;}
+.stat-num{font-family:var(--display);font-size:3.2rem;letter-spacing:3px;color:var(--accent);text-shadow:0 0 20px rgba(0,212,255,.4);display:block;}
+[data-theme="light"] .stat-num{text-shadow:none;}
+.stat-lbl{font-family:var(--mono);font-size:.67rem;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-top:.4rem;display:block;font-weight:600;}
+
+/* ════ FOOTER ════ */
+footer{border-top:1px solid var(--border);padding:2.5rem clamp(1.5rem,5vw,4rem);
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;
+  background:rgba(5,10,15,.9);transition:background .3s,border-color .3s;}
+[data-theme="light"] footer{background:rgba(240,244,248,.9);}
+.foot-logo{font-family:var(--display);font-size:1.35rem;letter-spacing:4px;color:var(--muted);}
+.foot-logo span{color:var(--accent);}
+.foot-copy{font-family:var(--mono);font-size:.67rem;color:var(--muted);letter-spacing:2px;font-weight:500;}
+
+/* ════════════ TOOL SECTION ════════════ */
+.tool-section{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);transition:background .3s,border-color .3s;}
+
+.mode-tabs{display:flex;gap:2px;margin-bottom:2rem;background:var(--border);width:fit-content;}
+.mode-tab{font-family:var(--mono);font-size:.75rem;letter-spacing:2px;text-transform:uppercase;
+  padding:.8rem 1.85rem;background:var(--surface2);color:var(--muted);cursor:pointer;border:none;transition:all .2s;font-weight:600;}
+.mode-tab.active{background:var(--accent);color:var(--bg);font-weight:700;}
+.mode-tab:hover:not(.active){background:var(--surface);color:var(--text);}
+
+.api-notice{font-family:var(--mono);font-size:.72rem;color:var(--muted);letter-spacing:1px;
+  border:1px solid var(--border);padding:.75rem 1.1rem;margin-bottom:1.5rem;background:var(--bg);
+  display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;}
+.api-notice strong{color:var(--accent3);font-weight:700;}
+.api-key-input{flex:1;min-width:200px;background:var(--input-bg);border:1px solid var(--border);
+  color:var(--text);font-family:var(--mono);font-size:.72rem;padding:.5rem .75rem;outline:none;transition:border-color .2s;}
+.api-key-input:focus{border-color:var(--accent);}
+.api-key-btn{font-family:var(--mono);font-size:.68rem;letter-spacing:2px;text-transform:uppercase;
+  padding:.5rem 1.1rem;background:var(--accent);color:var(--bg);border:none;cursor:pointer;font-weight:700;transition:background .2s;}
+.api-key-btn:hover{background:var(--strong);}
+
+.upload-zone{border:2px dashed var(--border);padding:3rem;text-align:center;position:relative;
+  transition:all .3s;cursor:pointer;background:var(--bg);}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:rgba(0,212,255,.03);}
+[data-theme="light"] .upload-zone:hover,[data-theme="light"] .upload-zone.drag-over{background:rgba(0,118,168,.04);}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.uz-icon{font-size:2.8rem;margin-bottom:1rem;display:block;filter:drop-shadow(0 0 10px rgba(0,212,255,.4));}
+.uz-title{font-family:var(--mono);font-size:.88rem;letter-spacing:2px;color:var(--accent);text-transform:uppercase;margin-bottom:.5rem;font-weight:700;}
+.uz-sub{font-family:var(--mono);font-size:.72rem;color:var(--muted);font-weight:500;}
+
+.code-wrap label{font-family:var(--mono);font-size:.72rem;letter-spacing:2px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:.6rem;font-weight:600;}
+.code-ta{width:100%;min-height:230px;background:var(--input-bg);border:2px solid var(--border);color:var(--accent3);
+  font-family:var(--mono);font-size:.83rem;line-height:1.75;padding:1.35rem;resize:vertical;outline:none;transition:border-color .3s;}
+.code-ta:focus{border-color:var(--accent);}
+.code-ta::placeholder{color:var(--muted);}
+[data-theme="light"] .code-ta{color:#1a6a00;}
+
+.file-list{margin-top:1rem;display:flex;flex-direction:column;gap:.4rem;}
+.file-item{display:flex;align-items:center;justify-content:space-between;background:var(--bg);
+  border:1px solid var(--border);padding:.6rem 1.1rem;font-family:var(--mono);font-size:.74rem;gap:.5rem;transition:background .3s;}
+.fi-name{color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;}
+.fi-sz{color:var(--muted);flex-shrink:0;}
+.fi-st{font-size:.64rem;letter-spacing:1px;flex-shrink:0;font-weight:700;}
+.fi-st.ok{color:var(--accent3);}.fi-st.warn{color:#ffb800;}.fi-st.err{color:var(--accent2);}
+
+.action-bar{display:flex;gap:1rem;margin-top:1.5rem;flex-wrap:wrap;}
+.scan-btn{font-family:var(--mono);font-size:.82rem;letter-spacing:2px;text-transform:uppercase;
+  padding:.95rem 2.6rem;background:var(--accent);color:var(--bg);border:none;cursor:pointer;
+  clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);transition:all .2s;font-weight:700;display:flex;align-items:center;gap:.6rem;}
+.scan-btn:hover{background:var(--strong);box-shadow:0 0 30px rgba(0,212,255,.5);}
+.scan-btn:disabled{background:var(--muted);cursor:not-allowed;box-shadow:none;}
+.spin{display:none;width:14px;height:14px;border:2px solid rgba(0,0,0,.25);border-top-color:#000;border-radius:50%;animation:sp .7s linear infinite;}
+.scan-btn.loading .spin{display:inline-block;}
+@keyframes sp{to{transform:rotate(360deg);}}
+.clear-btn{font-family:var(--mono);font-size:.8rem;letter-spacing:2px;text-transform:uppercase;
+  padding:.95rem 1.6rem;background:transparent;color:var(--muted);border:1px solid var(--border);cursor:pointer;transition:all .2s;font-weight:600;}
+.clear-btn:hover{border-color:var(--accent2);color:var(--accent2);}
+
+.status-bar{display:none;font-family:var(--mono);font-size:.74rem;color:var(--accent);
+  border:1px solid var(--border);padding:.8rem 1rem;margin-top:1rem;background:rgba(0,212,255,.03);}
+[data-theme="light"] .status-bar{background:rgba(0,118,168,.04);}
+.status-bar.show{display:block;animation:fadeUp .4s ease both;}
+.prog{height:2px;background:var(--border);margin-top:.55rem;overflow:hidden;}
+.prog-bar{height:100%;background:var(--accent);width:0%;transition:width .3s;}
+.prog-bar.go{animation:pg 8s ease forwards;}
+@keyframes pg{0%{width:0%;}20%{width:25%;}50%{width:55%;}80%{width:80%;}100%{width:92%;}}
+
+/* ════ RESULTS ════ */
+.results-panel{margin-top:2.5rem;display:none;}
+.results-panel.show{display:block;animation:fadeUp .5s ease both;}
+.res-hdr{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.75rem;padding-bottom:1.75rem;border-bottom:1px solid var(--border);}
+.res-title{font-family:var(--display);font-size:2.5rem;letter-spacing:3px;color:var(--strong);}
+.res-meta{font-family:var(--mono);font-size:.72rem;color:var(--muted);letter-spacing:1px;margin-top:.3rem;font-weight:500;}
+
+/* MISSING ASSETS */
+.missing-notice{background:rgba(255,184,0,.05);border:1px solid rgba(255,184,0,.35);padding:1.1rem 1.35rem;margin-bottom:1.75rem;font-family:var(--mono);font-size:.8rem;line-height:1.75;}
+.mn-title{color:#ffb800;letter-spacing:2px;text-transform:uppercase;margin-bottom:.6rem;display:flex;align-items:center;gap:.5rem;font-weight:700;}
+.mn-item{color:var(--muted);display:flex;align-items:flex-start;gap:.5rem;margin-top:.3rem;}
+.mn-item::before{content:'⚠';color:#ffb800;flex-shrink:0;}
+
+/* CHIPS */
+.chips{display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.75rem;}
+.chip{font-family:var(--mono);font-size:.7rem;letter-spacing:2px;padding:.42rem 1.1rem;border:1px solid;font-weight:700;}
+.chip.critical{color:var(--accent2);border-color:var(--accent2);}
+.chip.high{color:#ff7c3a;border-color:#ff7c3a;}
+.chip.medium{color:#ffb800;border-color:#ffb800;}
+.chip.low{color:var(--accent3);border-color:var(--accent3);}
+.chip.info{color:var(--accent);border-color:var(--accent);}
+.chip.clean{color:var(--accent3);border-color:var(--accent3);background:rgba(57,255,20,.05);}
+.chip.warn2{color:#ffb800;border-color:#ffb800;}
+
+/* ISSUE CARDS */
+.issue-card{background:var(--bg);border:1px solid var(--border);margin-bottom:.8rem;overflow:hidden;transition:border-color .3s;}
+.issue-card:hover{border-color:var(--muted);}
+.issue-hdr{display:flex;align-items:center;gap:.75rem;padding:1rem 1.25rem;cursor:pointer;user-select:none;flex-wrap:wrap;}
+.sev{font-family:var(--mono);font-size:.6rem;letter-spacing:2px;padding:3px 9px;border:1px solid;flex-shrink:0;text-transform:uppercase;font-weight:700;}
+.sev.critical{color:var(--accent2);border-color:var(--accent2);background:rgba(255,76,106,.08);}
+.sev.high{color:#ff7c3a;border-color:#ff7c3a;background:rgba(255,124,58,.08);}
+.sev.medium{color:#ffb800;border-color:#ffb800;background:rgba(255,184,0,.08);}
+.sev.low{color:var(--accent3);border-color:var(--accent3);background:rgba(57,255,20,.08);}
+.issue-ttl{font-family:var(--mono);font-size:.82rem;color:var(--text);flex:1;font-weight:600;}
+.issue-fl{font-family:var(--mono);font-size:.68rem;color:var(--muted);}
+.issue-tog{font-family:var(--mono);font-size:.7rem;color:var(--muted);flex-shrink:0;font-weight:600;}
+.issue-bdy{padding:0 1.25rem 1.25rem;display:none;border-top:1px solid var(--border);}
+.issue-bdy.open{display:block;}
+.issue-desc{font-size:.9rem;color:var(--muted);line-height:1.75;margin-top:1rem;font-weight:400;}
+.code-lbl{font-family:var(--mono);font-size:.64rem;letter-spacing:2px;color:var(--accent);text-transform:uppercase;margin:.8rem 0 .4rem;font-weight:700;}
+.code-block{background:#020c14;border:1px solid var(--border);padding:.95rem 1.1rem;font-family:var(--mono);font-size:.8rem;line-height:1.65;overflow-x:auto;white-space:pre-wrap;word-break:break-all;}
+[data-theme="light"] .code-block{background:#f0f5fa;}
+.code-block.fix{color:var(--accent3);}.code-block.orig{color:var(--accent2);}
+
+/* FIXED FILES */
+.ffi{background:var(--bg);border:1px solid var(--border);margin-bottom:.5rem;overflow:hidden;transition:background .3s;}
+.ffi-hdr{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.1rem;cursor:pointer;font-family:var(--mono);font-size:.76rem;}
+.ffi-nm{color:var(--accent);font-weight:700;}.ffi-ch{font-size:.65rem;color:var(--muted);}
+.ffi-bdy{display:none;border-top:1px solid var(--border);}
+.ffi-bdy.open{display:block;}
+
+/* INSTALL BOX */
+.install-box{background:var(--bg);border:1px solid var(--border);margin-top:1.75rem;overflow:hidden;}
+.install-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;
+  padding:.8rem 1.1rem;background:var(--surface2);border-bottom:1px solid var(--border);}
+.install-hdr-title{font-family:var(--mono);font-size:.74rem;letter-spacing:2px;color:var(--accent);text-transform:uppercase;font-weight:700;}
+.install-bdy{padding:1.4rem;}
+.install-step{display:flex;gap:1rem;align-items:flex-start;margin-bottom:1.2rem;}
+.install-step:last-child{margin-bottom:0;}
+.install-num{font-family:var(--display);font-size:2rem;color:var(--accent);line-height:1;flex-shrink:0;min-width:2rem;}
+.install-content{}
+.install-title{font-family:var(--mono);font-size:.78rem;color:var(--strong);letter-spacing:1px;margin-bottom:.3rem;font-weight:700;text-transform:uppercase;}
+.install-desc{font-size:.9rem;color:var(--muted);line-height:1.65;font-weight:400;}
+.install-cmd{background:#020c14;border:1px solid var(--border);padding:.6rem 1rem;font-family:var(--mono);font-size:.78rem;color:var(--accent3);margin-top:.5rem;overflow-x:auto;white-space:pre;cursor:copy;position:relative;transition:border-color .2s;}
+[data-theme="light"] .install-cmd{background:#f0f5fa;color:#1a6a00;}
+.install-cmd:hover{border-color:var(--accent);}
+.install-cmd::after{content:'COPY';position:absolute;right:.6rem;top:50%;transform:translateY(-50%);
+  font-family:var(--mono);font-size:.6rem;color:var(--muted);letter-spacing:1px;}
+
+/* REQ BOX */
+.req-box{background:#020c14;border:1px solid var(--border);margin-top:1.5rem;overflow:hidden;}
+[data-theme="light"] .req-box{background:#f0f5fa;}
+.req-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;
+  padding:.8rem 1.1rem;background:var(--surface2);border-bottom:1px solid var(--border);}
+.req-hdr-title{font-family:var(--mono);font-size:.74rem;letter-spacing:2px;color:var(--accent);text-transform:uppercase;font-weight:700;}
+.req-bdy{padding:1.35rem;font-family:var(--mono);font-size:.8rem;color:var(--muted);line-height:1.9;}
+.req-sec{color:var(--accent);margin-top:1rem;letter-spacing:2px;font-weight:700;}
+.req-cmd{color:var(--accent3);white-space:pre-wrap;}
+.req-note{color:#ffb800;font-weight:600;}
+
+/* DOWNLOAD ROW */
+.dl-row{display:flex;gap:1rem;flex-wrap:wrap;margin-top:1.75rem;padding-top:1.75rem;border-top:1px solid var(--border);}
+.dl-btn{font-family:var(--mono);font-size:.76rem;letter-spacing:2px;text-transform:uppercase;
+  padding:.75rem 1.7rem;border:none;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:.4rem;font-weight:700;}
+.dl-btn.p{background:var(--accent);color:var(--bg);clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);}
+.dl-btn.p:hover{background:var(--strong);box-shadow:0 0 20px rgba(0,212,255,.4);}
+.dl-btn.s{background:transparent;color:var(--accent2);border:1px solid var(--accent2);}
+.dl-btn.s:hover{background:rgba(255,76,106,.08);}
+.dl-btn.t{background:transparent;color:#ffb800;border:1px solid #ffb800;}
+.dl-btn.t:hover{background:rgba(255,184,0,.08);}
+.dl-btn.q{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.dl-btn.q:hover{border-color:var(--accent);color:var(--accent);}
+
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border);}
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">CODE<span>SCAN</span></div>
+  <div class="marquee-wrap">
+    <div class="marquee-track" id="mqTrack"></div>
+  </div>
+  <div class="header-actions">
+    <div class="theme-toggle-wrap">
+      <span class="theme-lbl" id="themeLbl">DARK</span>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle theme"></button>
+    </div>
+    <div class="badge">⬡ LIVE</div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div>
+    <p class="hero-tag">// AI-POWERED CODE DEBUGGER &nbsp;·&nbsp; GEMINI ENGINE &nbsp;·&nbsp; AKSHAY BORASE & ADITYA WAGH</p>
+    <h1>CODE<br/><span class="highlight">SCAN</span></h1>
+    <p class="hero-sub">Find bugs before they find you.<br/>
+    Paste code or drop a folder → <strong>instant AI analysis</strong>, security audits, and <span class="ac2">clean error-free code</span> back.</p>
+    <div class="cta-row">
+      <button class="btn-p" onclick="document.getElementById('tool').scrollIntoView({behavior:'smooth'})">TRY IT NOW</button>
+      <button class="btn-s" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">SEE FEATURES</button>
+    </div>
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker">
+    <span class="err">✗ NULL_POINTER_EXCEPTION detected &nbsp;</span>
+    <span class="ok">✓ SQL injection vulnerability patched &nbsp;</span>
+    <span class="warn">⚠ Infinite loop risk identified &nbsp;</span>
+    <span class="err">✗ Memory leak in heap allocation &nbsp;</span>
+    <span class="ok">✓ Race condition resolved &nbsp;</span>
+    <span class="warn">⚠ Deprecated API usage flagged &nbsp;</span>
+    <span class="err">✗ Buffer overflow — HIGH severity &nbsp;</span>
+    <span class="ok">✓ XSS vulnerability mitigated &nbsp;</span>
+    <span class="warn">⚠ O(n²) complexity detected &nbsp;</span>
+    <span class="err">✗ NULL_POINTER_EXCEPTION detected &nbsp;</span>
+    <span class="ok">✓ SQL injection vulnerability patched &nbsp;</span>
+    <span class="warn">⚠ Infinite loop risk identified &nbsp;</span>
+    <span class="err">✗ Memory leak in heap allocation &nbsp;</span>
+    <span class="ok">✓ Race condition resolved &nbsp;</span>
+    <span class="warn">⚠ Deprecated API usage flagged &nbsp;</span>
+    <span class="err">✗ Buffer overflow — HIGH severity &nbsp;</span>
+    <span class="ok">✓ XSS vulnerability mitigated &nbsp;</span>
+    <span class="warn">⚠ O(n²) complexity detected &nbsp;</span>
+  </div>
+</div>
+
+<!-- TOOL SECTION -->
+<section class="tool-section" id="tool">
+<div class="section reveal">
+  <p class="sec-lbl">00 — SCAN ENGINE</p>
+  <h2 class="sec-title">RUN A <span class="ac">SCAN</span></h2>
+  <p class="sec-body">Drop a single file, paste code, or upload an entire project folder. CodeScan returns clean, fixed code — plus simple install instructions and notes any missing assets.</p>
+
+  <!-- API KEY -->
+  <div class="api-notice" style="margin-top:2rem;">
+    <strong>🔑 GEMINI API KEY</strong>
+    <input class="api-key-input" type="password" id="apiKeyInput" placeholder="Paste your free Gemini API key here (get one at aistudio.google.com)"/>
+    <button class="api-key-btn" onclick="saveApiKey()">SAVE KEY</button>
+    <span id="apiKeyStatus" style="font-size:.68rem;letter-spacing:1px;color:var(--muted);"></span>
+  </div>
+
+  <div class="mode-tabs">
+    <button class="mode-tab active" onclick="switchMode('code')">📝 PASTE CODE</button>
+    <button class="mode-tab" onclick="switchMode('file')">📄 SINGLE FILE</button>
+    <button class="mode-tab" onclick="switchMode('folder')">📁 PROJECT FOLDER</button>
+  </div>
+
+  <!-- PASTE CODE MODE -->
+  <div id="mode-code">
+    <div class="code-wrap">
+      <label>// PASTE YOUR CODE BELOW — LANGUAGE AUTO-DETECTED</label>
+      <textarea class="code-ta" id="codeInput" placeholder="// Paste any code here — Python, JavaScript, Java, C++, Go, Rust, TypeScript...
+// CodeScan detects the language and fixes all issues automatically.
+
+function login(user, pass) {
+  let query = 'SELECT * FROM users WHERE name=\'' + user + '\'';
+  // ← SQL injection, unhandled errors, no input validation...
+  // CodeScan will catch it all!
+}"></textarea>
+    </div>
+    <div class="action-bar">
+      <button class="scan-btn" id="btnCode" onclick="runScan('code')"><span class="spin"></span>SCAN &amp; FIX CODE</button>
+      <button class="clear-btn" onclick="clearAll()">CLEAR</button>
+    </div>
+  </div>
+
+  <!-- SINGLE FILE MODE -->
+  <div id="mode-file" style="display:none;">
+    <div class="upload-zone" id="fileZone"
+      ondragover="dov(event,'fileZone')" ondragleave="dlv('fileZone')" ondrop="dropF(event,'single')">
+      <input type="file" id="singleInput" onchange="handleSingle(this.files[0])"
+        accept=".py,.js,.ts,.jsx,.tsx,.java,.cpp,.c,.h,.go,.rs,.php,.rb,.cs,.html,.css,.scss,.sql,.sh"/>
+      <span class="uz-icon">📄</span>
+      <div class="uz-title">DROP A CODE FILE HERE</div>
+      <div class="uz-sub">or click to browse &nbsp;·&nbsp; .py .js .ts .java .cpp .go .rs .php and more</div>
+    </div>
+    <div class="file-list" id="singleList"></div>
+    <div class="action-bar">
+      <button class="scan-btn" id="btnFile" onclick="runScan('file')"><span class="spin"></span>SCAN &amp; FIX FILE</button>
+      <button class="clear-btn" onclick="clearAll()">CLEAR</button>
+    </div>
+  </div>
+
+  <!-- FOLDER MODE -->
+  <div id="mode-folder" style="display:none;">
+    <div class="upload-zone" id="folderZone"
+      ondragover="dov(event,'folderZone')" ondragleave="dlv('folderZone')" ondrop="dropF(event,'folder')">
+      <input type="file" id="folderInput" webkitdirectory multiple onchange="handleFolder(this.files)"/>
+      <span class="uz-icon">📁</span>
+      <div class="uz-title">DROP YOUR PROJECT FOLDER HERE</div>
+      <div class="uz-sub">or click to browse &nbsp;·&nbsp; scans all files &nbsp;·&nbsp; checks cross-file linking &nbsp;·&nbsp; returns fixed ZIP</div>
+    </div>
+    <div class="file-list" id="folderList"></div>
+    <div class="action-bar">
+      <button class="scan-btn" id="btnFolder" onclick="runScan('folder')"><span class="spin"></span>SCAN &amp; FIX FOLDER</button>
+      <button class="clear-btn" onclick="clearAll()">CLEAR</button>
+    </div>
+  </div>
+
+  <!-- STATUS -->
+  <div class="status-bar" id="statusBar">
+    <span id="statusTxt">Initializing...</span>
+    <div class="prog"><div class="prog-bar" id="progBar"></div></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results-panel" id="resultsPanel">
+    <div class="res-hdr">
+      <div>
+        <div class="res-title" id="resTitle">SCAN RESULTS</div>
+        <div class="res-meta" id="resMeta"></div>
+      </div>
+    </div>
+    <div class="missing-notice" id="missingNotice" style="display:none;">
+      <div class="mn-title">⚠ MISSING ASSETS DETECTED</div>
+      <div id="missingList"></div>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div id="issuesList"></div>
+    <div id="fixedOut"></div>
+    <div id="installBox"></div>
+    <div id="reqBox"></div>
+    <div class="dl-row" id="dlRow"></div>
+  </div>
+</div>
+</section>
+
+<!-- PROBLEM / SOLUTION -->
+<section class="section reveal">
+  <p class="sec-lbl">01 — CONTEXT</p>
+  <h2 class="sec-title">THE <span class="ac2">PROBLEM</span><br/>& THE <span class="ac">FIX</span></h2>
+  <div class="split">
+    <div class="split-card prob" data-label="PROBLEM">
+      <h3>THE PAIN</h3>
+      <p>Developers spend hours manually debugging — tracing logic, testing edge cases, sifting through docs. Even simple bugs derail cycles and cause production incidents. Existing tools are fragmented and demand deep expertise just to interpret their output.</p>
+    </div>
+    <div class="split-card sol" data-label="SOLUTION">
+      <h3>THE SCAN</h3>
+      <p>CodeScan eliminates that friction. Paste any snippet or drop a whole project and our Gemini AI engine instantly surfaces bugs, security issues, and performance bottlenecks — with plain-English explanations and ready-to-use fixes.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FEATURES -->
+<section class="section reveal" id="features">
+  <p class="sec-lbl">02 — CAPABILITIES</p>
+  <h2 class="sec-title">WHAT <span class="ac">CODE</span>SCAN<br/>DOES</h2>
+  <div class="feat-grid">
+    <div class="feat-card"><span class="feat-icon">🧠</span><h4>Gemini AI Engine</h4><p>Google Gemini Flash analyzes your code with state-of-the-art language understanding — fast, free, and deeply capable across all major languages.</p><span class="feat-num">01</span></div>
+    <div class="feat-card"><span class="feat-icon">🔒</span><h4>Security Audit</h4><p>Detects SQL injection, XSS vulnerabilities, buffer overflows, and other OWASP-class threats before they reach production.</p><span class="feat-num">02</span></div>
+    <div class="feat-card"><span class="feat-icon">⚡</span><h4>Performance Analysis</h4><p>Flags memory leaks, O(n²) loops, inefficient queries, and bottlenecks — with concrete optimization recommendations.</p><span class="feat-num">03</span></div>
+    <div class="feat-card"><span class="feat-icon">🛠️</span><h4>Fix Suggestions</h4><p>Every identified issue comes with corrected code and a plain-English explanation of why the original was problematic.</p><span class="feat-num">04</span></div>
+    <div class="feat-card"><span class="feat-icon">🌐</span><h4>Multi-Language</h4><p>Python, JavaScript, Java, C++, Go, Rust, TypeScript — CodeScan understands the syntax, idioms, and pitfalls of each.</p><span class="feat-num">05</span></div>
+    <div class="feat-card"><span class="feat-icon">🔗</span><h4>Cross-File Linking</h4><p>Upload a whole project and CodeScan checks imports, exports, function calls, and dependencies across all files for structural correctness.</p><span class="feat-num">06</span></div>
+    <div class="feat-card"><span class="feat-icon">📁</span><h4>Folder Fix & ZIP</h4><p>Upload an entire project folder and receive the complete fixed project back as a downloadable ZIP — all files corrected in one shot.</p><span class="feat-num">07</span></div>
+    <div class="feat-card"><span class="feat-icon">📦</span><h4>Simple Install Guide</h4><p>Auto-detects dependencies and generates friendly, plain-language install steps — no jargon, just "open terminal and type this."</p><span class="feat-num">08</span></div>
+    <div class="feat-card"><span class="feat-icon">🖼️</span><h4>Missing Assets</h4><p>Detects referenced images, videos, fonts, and files that are missing from your upload and lists them clearly in the report.</p><span class="feat-num">09</span></div>
+  </div>
+</section>
+
+<!-- TERMINAL DEMO -->
+<section class="section reveal">
+  <p class="sec-lbl">03 — LIVE DEMO</p>
+  <h2 class="sec-title">SEE IT IN <span class="ac">ACTION</span></h2>
+  <p class="sec-body">Watch CodeScan's Gemini-powered analysis pipeline — from project upload to downloadable fixed ZIP in seconds.</p>
+  <div class="terminal">
+    <div class="term-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="term-title">CODESCAN — GEMINI ENGINE v3.0 — AKSHAY & ADITYA</span></div>
+    <div class="term-body">
+      <div><span class="tp">$</span> <span class="tc">codescan analyze --engine gemini-flash --folder ./myproject</span></div>
+      <div><span class="ti">→ Indexing 14 files across 4 directories...</span></div>
+      <div><span class="ti">→ [GEMINI] Checking cross-file imports & links...</span></div>
+      <div><span class="ti">→ [GEMINI] Deep code analysis ████████████ 100%</span></div>
+      <br/>
+      <div><span class="to">┌─────────────────────────────────────────────────┐</span></div>
+      <div><span class="to">│  SCAN COMPLETE — 5 issues · 3 files fixed       │</span></div>
+      <div><span class="to">└─────────────────────────────────────────────────┘</span></div>
+      <br/>
+      <div><span class="te">[CRITICAL] SQL Injection — app.py:47</span></div>
+      <div><span class="to">  Fix applied → parameterized query inserted.</span></div>
+      <div><span class="te">[HIGH] Memory Leak — utils.py:112</span></div>
+      <div><span class="to">  Fix applied → context manager added.</span></div>
+      <div><span class="to">[MEDIUM] O(n²) Loop — processor.js:89</span></div>
+      <div><span class="to">  Fix applied → set-based lookup substituted.</span></div>
+      <br/>
+      <div><span class="tok">⚠ Missing assets: logo.png, bg-video.mp4</span></div>
+      <div><span class="tok">✓ Install steps generated (6 packages detected)</span></div>
+      <div><span class="tok">✓ Fixed project → myproject_fixed.zip [ready to download]</span></div>
+      <div><span class="tp">$</span> <span class="cursor"></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH STACK -->
+<section class="tech-section">
+  <div class="section reveal">
+    <p class="sec-lbl">04 — TECH STACK</p>
+    <h2 class="sec-title">BUILT <span class="ac">WITH</span></h2>
+    <p class="sec-body">Lean, fast, entirely client-side architecture — deployed instantly, no backend required.</p>
+    <div class="tech-grid">
+      <div class="tech-pill">HTML5</div><div class="tech-pill">CSS3</div><div class="tech-pill">JavaScript ES2024</div>
+      <div class="tech-pill">Google Gemini Flash API</div><div class="tech-pill">JSZip</div>
+      <div class="tech-pill">GitHub Pages</div><div class="tech-pill">Dark / Light Mode</div>
+      <div class="tech-pill">Responsive Design</div><div class="tech-pill">Zero Backend</div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section class="section reveal">
+  <p class="sec-lbl">05 — IMPACT</p>
+  <h2 class="sec-title">THE <span class="ac">NUMBERS</span></h2>
+  <div class="stats-row">
+    <div class="stat-box"><span class="stat-num">1</span><span class="stat-lbl">AI Engine</span></div>
+    <div class="stat-box"><span class="stat-num">10+</span><span class="stat-lbl">Languages</span></div>
+    <div class="stat-box"><span class="stat-num">&lt;5s</span><span class="stat-lbl">Avg Scan Time</span></div>
+    <div class="stat-box"><span class="stat-num">4</span><span class="stat-lbl">Severity Levels</span></div>
+    <div class="stat-box"><span class="stat-num">0</span><span class="stat-lbl">Backend Servers</span></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- TEAM -->
+<section class="section reveal">
+  <p class="sec-lbl">06 — TEAM</p>
+  <h2 class="sec-title">BUILT BY</h2>
+  <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-top:2rem;">
+    <div class="team-card" style="margin-top:0;">
+      <div class="avatar">AB</div>
+      <div>
+        <div class="team-name">AKSHAY BORASE</div>
+        <div class="team-role">// TEAM MEMBER &nbsp;·&nbsp; FULL-STACK DEVELOPER</div>
+      </div>
+    </div>
+    <div class="team-card" style="margin-top:0;">
+      <div class="avatar">AW</div>
+      <div>
+        <div class="team-name">ADITYA WAGH</div>
+        <div class="team-role">// TEAM MEMBER &nbsp;·&nbsp; FULL-STACK DEVELOPER</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-logo">CODE<span>SCAN</span></div>
+  <div class="foot-copy">HACKATHON PROJECT &nbsp;·&nbsp; 2026 &nbsp;·&nbsp; AKSHAY BORASE & ADITYA WAGH &nbsp;·&nbsp; GEMINI POWERED</div>
+</footer>
+
+<script>
+/* ════ THEME ════ */
+function toggleTheme(){
+  const html=document.documentElement;
+  const isDark=html.getAttribute('data-theme')==='dark';
+  html.setAttribute('data-theme',isDark?'light':'dark');
+  document.getElementById('themeLbl').textContent=isDark?'LIGHT':'DARK';
+  localStorage.setItem('csTheme',isDark?'light':'dark');
+}
+(function(){
+  const saved=localStorage.getItem('csTheme');
+  if(saved){
+    document.documentElement.setAttribute('data-theme',saved);
+    document.getElementById('themeLbl').textContent=saved==='light'?'LIGHT':'DARK';
+  }
+})();
+
+/* ════ MARQUEE ════ */
+(function(){
+  const track=document.getElementById('mqTrack');
+  const items=['TEAM MEMBERS','AKSHAY BORASE & ADITYA WAGH','·','CODESCAN','·','HACKATHON 2026','·',
+    'TEAM MEMBERS','AKSHAY BORASE & ADITYA WAGH','·','CODESCAN','·','HACKATHON 2026','·',
+    'TEAM MEMBERS','AKSHAY BORASE & ADITYA WAGH','·','CODESCAN','·','HACKATHON 2026','·',
+    'TEAM MEMBERS','AKSHAY BORASE & ADITYA WAGH','·','CODESCAN','·','HACKATHON 2026','·'];
+  items.forEach(it=>{
+    const s=document.createElement('span'); s.className='mq-item';
+    if(it==='AKSHAY BORASE & ADITYA WAGH') s.innerHTML=`<span class="mq-leader">${it}</span>`;
+    else if(it==='·') s.innerHTML=`<span class="mq-sep">◆</span>`;
+    else s.textContent=it;
+    track.appendChild(s);
+  });
+})();
+
+/* ════ API KEY ════ */
+(function(){
+  const saved=localStorage.getItem('GEMINI_API_KEY');
+  if(saved){
+    document.getElementById('apiKeyInput').value=saved;
+    document.getElementById('apiKeyStatus').textContent='✓ KEY SAVED';
+    document.getElementById('apiKeyStatus').style.color='var(--accent3)';
+  }
+})();
+function saveApiKey(){
+  const k=document.getElementById('apiKeyInput').value.trim();
+  if(!k){alert('Please enter your Gemini API key.');return;}
+  localStorage.setItem('GEMINI_API_KEY',k);
+  document.getElementById('apiKeyStatus').textContent='✓ KEY SAVED';
+  document.getElementById('apiKeyStatus').style.color='var(--accent3)';
+}
+
+/* ════ STATE ════ */
+let mode='code', singleFile=null, folderFiles=[], scanResult=null;
+window._missing=[];
+const CODE_EXTS=new Set(['py','js','ts','jsx','tsx','java','cpp','c','h','go','rs','php','rb','cs','html','css','scss','json','yaml','yml','sh','bash','sql','swift','kt','vue','svelte','md']);
+const ASSET_EXTS=new Set(['png','jpg','jpeg','gif','webp','svg','mp4','mov','avi','webm','mp3','wav','ogg','pdf','woff','woff2','ttf','eot','otf','ico','bmp']);
+
+function switchMode(m){
+  mode=m;
+  ['code','file','folder'].forEach(x=>document.getElementById('mode-'+x).style.display=x===m?'block':'none');
+  document.querySelectorAll('.mode-tab').forEach((t,i)=>t.classList.toggle('active',['code','file','folder'][i]===m));
+  clearAll();
+}
+
+/* ════ DRAG/DROP ════ */
+function dov(e,id){e.preventDefault();document.getElementById(id).classList.add('drag-over');}
+function dlv(id){document.getElementById(id).classList.remove('drag-over');}
+function dropF(e,t){
+  e.preventDefault();dlv(t==='single'?'fileZone':'folderZone');
+  if(t==='single'){const f=e.dataTransfer.files[0];if(f)handleSingle(f);}
+  else handleFolder(e.dataTransfer.files);
+}
+
+/* ════ FILE HANDLERS ════ */
+function handleSingle(file){
+  if(!file)return;
+  const ext=file.name.split('.').pop().toLowerCase();
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    singleFile={name:file.name,content:ev.target.result,ext};
+    document.getElementById('singleList').innerHTML=
+      `<div class="file-item"><span class="fi-name">📄 ${esc(file.name)}</span><span class="fi-sz">${(file.size/1024).toFixed(1)} KB</span><span class="fi-st ok">READY</span></div>`;
+  };
+  reader.readAsText(file);
+}
+
+function handleFolder(files){
+  folderFiles=[]; window._missing=[];
+  const list=document.getElementById('folderList'); list.innerHTML='';
+  const arr=Array.from(files);
+  arr.forEach(f=>{
+    const ext=f.name.split('.').pop().toLowerCase();
+    const row=document.createElement('div'); row.className='file-item';
+    if(ASSET_EXTS.has(ext)){
+      window._missing.push(f.webkitRelativePath||f.name);
+      row.innerHTML=`<span class="fi-name">🖼️ ${esc(f.webkitRelativePath||f.name)}</span><span class="fi-sz">${(f.size/1024).toFixed(1)} KB</span><span class="fi-st warn">ASSET</span>`;
+      list.appendChild(row);
+    } else if(CODE_EXTS.has(ext)){
+      const reader=new FileReader();
+      reader.onload=ev=>{folderFiles.push({name:f.name,path:f.webkitRelativePath||f.name,content:ev.target.result,ext});};
+      reader.readAsText(f);
+      row.innerHTML=`<span class="fi-name">📄 ${esc(f.webkitRelativePath||f.name)}</span><span class="fi-sz">${(f.size/1024).toFixed(1)} KB</span><span class="fi-st ok">QUEUED</span>`;
+      list.appendChild(row);
+    }
+  });
+}
+
+/* ════ CLEAR ════ */
+function clearAll(){
+  singleFile=null; folderFiles=[]; scanResult=null; window._missing=[];
+  ['singleList','folderList'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='';});
+  const ci=document.getElementById('codeInput'); if(ci) ci.value='';
+  document.getElementById('statusBar').classList.remove('show');
+  const rp=document.getElementById('resultsPanel'); rp.style.display='none'; rp.classList.remove('show');
+  const pb=document.getElementById('progBar'); if(pb){pb.style.animation='none';pb.style.width='0%';pb.style.background='var(--accent)';}
+}
+
+/* ════ GEMINI API CALL ════ */
+async function callGemini(prompt){
+  const apiKey=localStorage.getItem('GEMINI_API_KEY');
+  if(!apiKey) throw new Error('No API key found. Please enter your Gemini API key above.');
+
+  const resp=await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contents:[{parts:[{text:prompt}]}],
+        generationConfig:{temperature:0.1,maxOutputTokens:8192}
+      })
+    }
+  );
+
+  const data=await resp.json();
+  if(!resp.ok){
+    if(resp.status===400||resp.status===403) localStorage.removeItem('GEMINI_API_KEY');
+    throw new Error(data?.error?.message||`Gemini API error: ${resp.status}`);
+  }
+
+  let raw=data?.candidates?.[0]?.content?.parts?.[0]?.text||'';
+  raw=raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
+  const j0=raw.indexOf('{'), j1=raw.lastIndexOf('}');
+  if(j0===-1||j1===-1) throw new Error('Gemini returned invalid JSON. Try again or check your code input.');
+  return JSON.parse(raw.slice(j0,j1+1));
+}
+
+/* ════ RUN SCAN ════ */
+async function runScan(m){
+  let code='', filename='snippet', isFolder=false;
+
+  if(m==='code'){
+    code=document.getElementById('codeInput').value.trim();
+    if(!code){alert('Please paste some code first.');return;}
+    filename='pasted_code';
+  } else if(m==='file'){
+    if(!singleFile){alert('Please upload a file first.');return;}
+    code=singleFile.content; filename=singleFile.name;
+  } else {
+    if(!folderFiles.length){alert('Please upload a folder with code files first.');return;}
+    isFolder=true; filename=folderFiles[0].path.split('/')[0]||'project';
+  }
+
+  const btnId=m==='code'?'btnCode':m==='file'?'btnFile':'btnFolder';
+  const btn=document.getElementById(btnId);
+  btn.classList.add('loading'); btn.disabled=true;
+
+  const sb=document.getElementById('statusBar'), st=document.getElementById('statusTxt');
+  sb.classList.add('show');
+  const pb=document.getElementById('progBar');
+  pb.style.animation=''; pb.className='prog-bar go'; pb.style.background='var(--accent)';
+
+  const steps=isFolder
+    ?['Indexing project files...','Mapping cross-file imports...','Running Gemini deep scan...','Fixing all files...','Packaging results...']
+    :['Detecting language...','Running Gemini analysis...','Applying fixes...','Generating install steps...','Finalizing report...'];
+  let si=0; const iv=setInterval(()=>{if(si<steps.length)st.textContent=steps[si++];},1200);
+
+  try {
+    let prompt;
+
+    if(isFolder){
+      const filesText=folderFiles.map(f=>`=== FILE: ${f.path} ===\n${f.content}`).join('\n\n');
+      const assetNote=window._missing.length?`\nAsset files present but not scanned: ${window._missing.join(', ')}`:'';
+
+      prompt=`You are CodeScan, an expert code reviewer. Analyze this ENTIRE PROJECT thoroughly.
+
+Tasks:
+1. Check ALL cross-file imports, function calls, exports — flag any broken links between files
+2. Find ALL bugs, security issues (SQL injection, XSS, etc.), logic errors, and performance problems in every file
+3. Fix EVERY issue and return the complete corrected content of each file
+4. Detect all required packages/dependencies
+5. Generate simple, friendly install instructions a beginner can follow
+
+Return ONLY a raw JSON object. No markdown, no backticks, no preamble. Schema:
+{
+  "summary": {"critical":0,"high":0,"medium":0,"low":0,"totalFiles":0,"fixedFiles":0},
+  "issues": [{"severity":"critical|high|medium|low","title":"string","file":"filepath","line":"number or null","description":"plain english explanation of the problem","original":"buggy code snippet","fix":"fixed code snippet"}],
+  "crossFileIssues": [{"title":"string","description":"which files are affected and how"}],
+  "fixedFiles": [{"path":"string","fixedContent":"FULL corrected file content","changes":"one-line summary of what was fixed"}],
+  "dependencies": ["package1","package2"],
+  "requirementsTxt": "pip-style requirements.txt if Python deps exist, else null",
+  "installSteps": [{"step":1,"title":"Step title","description":"simple friendly description a beginner can understand","command":"terminal command if needed, else null"}],
+  "installInstructions": "overall install summary in plain simple language",
+  "missingAssets": ["file paths referenced in code but not found in project"]
+}
+${assetNote}
+
+PROJECT FILES:
+${filesText}`;
+
+    } else {
+      prompt=`You are CodeScan, an expert code reviewer. Analyze this code and fix ALL issues.
+
+Tasks:
+1. Find ALL bugs, security vulnerabilities (SQL injection, XSS, etc.), logic errors, type errors
+2. Fix every issue and return the complete corrected file
+3. Detect all required packages/libraries this code needs
+4. Generate step-by-step install instructions in SIMPLE PLAIN LANGUAGE — like you're explaining to someone who has never coded before. Say things like "Open your terminal (the black window)" and "Type this command and press Enter".
+
+Return ONLY a raw JSON object. No markdown, no backticks, no preamble. Schema:
+{
+  "filename": "${filename}",
+  "language": "detected language",
+  "summary": {"critical":0,"high":0,"medium":0,"low":0},
+  "issues": [{"severity":"critical|high|medium|low","title":"string","line":"number or null","description":"plain english explanation","original":"buggy code snippet","fix":"fixed code snippet"}],
+  "fixedCode": "THE COMPLETE error-free corrected file — full content, all bugs fixed",
+  "dependencies": ["package1","package2"],
+  "requirementsTxt": "pip requirements.txt content if Python, or null",
+  "installSteps": [{"step":1,"title":"Step title","description":"simple beginner-friendly explanation","command":"exact terminal command to type, or null if no command needed"}],
+  "installInstructions": "A friendly 2-3 sentence summary explaining what needs to be installed and why, in plain simple language",
+  "missingAssets": ["any image/video/font/file paths referenced in code that seem missing"]
+}
+
+CODE TO ANALYZE (${filename}):
+${code}`;
+    }
+
+    const result=await callGemini(prompt);
+    scanResult=result;
+    clearInterval(iv);
+
+    st.textContent='✓ Scan complete!';
+    pb.style.animation='none'; pb.style.width='100%';
+    setTimeout(()=>{sb.classList.remove('show'); renderResults(result,isFolder);},700);
+
+  } catch(err){
+    clearInterval(iv);
+    st.textContent='✗ Error: '+err.message;
+    pb.style.animation='none'; pb.style.background='var(--accent2)';
+    console.error(err);
+  } finally {
+    btn.classList.remove('loading'); btn.disabled=false;
+  }
+}
+
+/* ════ RENDER RESULTS ════ */
+function renderResults(r,isFolder){
+  const panel=document.getElementById('resultsPanel');
+  panel.style.display='block';
+  setTimeout(()=>panel.classList.add('show'),10);
+  panel.scrollIntoView({behavior:'smooth',block:'start'});
+
+  const sum=r.summary||{}, issues=r.issues||[], crossFileIssues=r.crossFileIssues||[];
+  const allIssues=[...issues,...crossFileIssues.map(ci=>({...ci,severity:'high',isCrossFile:true}))];
+  const missing=[...(r.missingAssets||[]),...(window._missing||[])].filter((v,i,a)=>a.indexOf(v)===i);
+  const deps=r.dependencies||[];
+
+  document.getElementById('resTitle').textContent=isFolder?'PROJECT SCAN RESULTS':'SCAN RESULTS';
+  document.getElementById('resMeta').textContent=
+    `// ${isFolder
+      ?`${sum.totalFiles||folderFiles.length} files scanned · ${sum.fixedFiles||(r.fixedFiles||[]).length} fixed`
+      :`${r.language||'detected'} · ${r.filename||'code'}`} · ${issues.length} issue${issues.length!==1?'s':''} found`;
+
+  // Missing assets
+  const mn=document.getElementById('missingNotice');
+  if(missing.length){
+    mn.style.display='block';
+    document.getElementById('missingList').innerHTML=missing.map(m=>
+      `<div class="mn-item">${esc(m)} — referenced in code but not found. Add this file to your project.</div>`).join('');
+  } else mn.style.display='none';
+
+  // Chips
+  const ch=document.getElementById('chips'); ch.innerHTML='';
+  if(!issues.length&&!crossFileIssues.length)
+    ch.innerHTML='<div class="chip clean">✓ NO ISSUES FOUND — CODE IS CLEAN</div>';
+  else ['critical','high','medium','low'].forEach(s=>{
+    const c=issues.filter(i=>i.severity===s).length;
+    if(c) ch.innerHTML+=`<div class="chip ${s}">${c} ${s.toUpperCase()}</div>`;
+  });
+  if(crossFileIssues.length) ch.innerHTML+=`<div class="chip warn2">🔗 ${crossFileIssues.length} CROSS-FILE ISSUE${crossFileIssues.length>1?'S':''}</div>`;
+  if(deps.length) ch.innerHTML+=`<div class="chip info">📦 ${deps.length} PACKAGE${deps.length>1?'S':''} NEEDED</div>`;
+  if(missing.length) ch.innerHTML+=`<div class="chip warn2">⚠ ${missing.length} MISSING FILE${missing.length>1?'S':''}</div>`;
+
+  // Issues list
+  const il=document.getElementById('issuesList');
+  il.innerHTML='';
+  if(!allIssues.length){
+    il.innerHTML='<div style="font-family:var(--mono);font-size:.88rem;color:var(--accent3);padding:1.25rem 0;font-weight:600;">✓ No issues detected. Your code is clean!</div>';
+  }
+  allIssues.forEach((issue,i)=>{
+    const d=document.createElement('div'); d.className='issue-card';
+    const sevClass=issue.severity||'low';
+    d.innerHTML=`
+      <div class="issue-hdr" onclick="togIssue(${i})">
+        <span class="sev ${sevClass}">${sevClass.toUpperCase()}</span>
+        ${issue.isCrossFile?'<span class="sev" style="color:var(--accent);border-color:var(--accent);background:rgba(0,212,255,.08);">🔗 CROSS-FILE</span>':''}
+        <span class="issue-ttl">${esc(issue.title||'Issue')}</span>
+        ${issue.file?`<span class="issue-fl">${esc(issue.file)}</span>`:''}
+        ${issue.line?`<span class="issue-fl">:${esc(String(issue.line))}</span>`:''}
+        <span class="issue-tog" id="tog${i}">▼ DETAILS</span>
+      </div>
+      <div class="issue-bdy" id="ibdy${i}">
+        <p class="issue-desc">${esc(issue.description||'')}</p>
+        ${issue.original?`<div class="code-lbl">// ORIGINAL (BUGGY)</div><div class="code-block orig">${esc(issue.original)}</div>`:''}
+        ${issue.fix?`<div class="code-lbl">// FIX</div><div class="code-block fix">${esc(issue.fix)}</div>`:''}
+      </div>`;
+    il.appendChild(d);
+  });
+
+  // Fixed output
+  const fo=document.getElementById('fixedOut'); fo.innerHTML='';
+  if(isFolder&&r.fixedFiles&&r.fixedFiles.length){
+    fo.innerHTML='<div style="font-family:var(--mono);font-size:.74rem;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin:1.75rem 0 .75rem;font-weight:700;">// FIXED FILES — CLICK TO EXPAND</div>';
+    r.fixedFiles.forEach((ff,i)=>{
+      const d=document.createElement('div'); d.className='ffi';
+      d.innerHTML=`
+        <div class="ffi-hdr" onclick="togFFI(${i})">
+          <span class="ffi-nm">📄 ${esc(ff.path)}</span>
+          <span class="ffi-ch">${esc(ff.changes||'Fixed')}</span>
+        </div>
+        <div class="ffi-bdy" id="ffib${i}">
+          <div class="code-block fix" style="max-height:320px;overflow-y:auto;padding:1rem;">${esc(ff.fixedContent||'')}</div>
+        </div>`;
+      fo.appendChild(d);
+    });
+    window._fixedFiles=r.fixedFiles;
+  } else if(!isFolder&&r.fixedCode){
+    fo.innerHTML=`
+      <div style="font-family:var(--mono);font-size:.74rem;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin:1.75rem 0 .75rem;font-weight:700;">// FIXED CODE — ERROR FREE</div>
+      <div class="code-block fix" style="max-height:420px;overflow-y:auto;">${esc(r.fixedCode)}</div>`;
+    window._fixedCode=r.fixedCode;
+    window._fixedName=r.filename||'fixed_code.txt';
+  }
+
+  // Install Steps (NEW — friendly step-by-step guide)
+  const ib=document.getElementById('installBox'); ib.innerHTML='';
+  const steps=r.installSteps||[];
+  if(steps.length||r.installInstructions){
+    let stepsHtml='';
+    steps.forEach(s=>{
+      stepsHtml+=`
+        <div class="install-step">
+          <div class="install-num">${s.step}</div>
+          <div class="install-content">
+            <div class="install-title">${esc(s.title||'')}</div>
+            <div class="install-desc">${esc(s.description||'')}</div>
+            ${s.command?`<div class="install-cmd" onclick="copyCmd(this,'${esc(s.command).replace(/'/g,"\\'")}'">${esc(s.command)}</div>`:''}
+          </div>
+        </div>`;
+    });
+    ib.innerHTML=`
+      <div class="install-box">
+        <div class="install-hdr">
+          <span class="install-hdr-title">🚀 HOW TO INSTALL & RUN — SIMPLE GUIDE</span>
+          ${r.requirementsTxt?`<button class="dl-btn t" style="padding:.35rem .9rem;font-size:.65rem;" onclick="dlReqs()">⬇ REQUIREMENTS.TXT</button>`:''}
+        </div>
+        <div class="install-bdy">
+          ${r.installInstructions?`<p style="font-size:.92rem;color:var(--muted);line-height:1.7;margin-bottom:1.25rem;font-weight:400;">${esc(r.installInstructions)}</p>`:''}
+          ${stepsHtml}
+          ${deps.length?`<div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border);">
+            <div style="font-family:var(--mono);font-size:.7rem;color:var(--accent);letter-spacing:2px;font-weight:700;margin-bottom:.6rem;">📦 PACKAGES NEEDED</div>
+            <div>${deps.map(d=>`<span style="display:inline-block;background:rgba(0,212,255,.08);border:1px solid var(--border);color:var(--accent3);font-family:var(--mono);font-size:.72rem;padding:2px 10px;margin:.2rem;font-weight:600;">${esc(d)}</span>`).join('')}</div>
+          </div>`:''}
+        </div>
+      </div>`;
+    window._reqsTxt=r.requirementsTxt||'';
+  }
+
+  // Requirements.txt box
+  const rb=document.getElementById('reqBox'); rb.innerHTML='';
+  if(r.requirementsTxt){
+    rb.innerHTML=`
+      <div class="req-box" style="margin-top:1.25rem;">
+        <div class="req-hdr">
+          <span class="req-hdr-title">📦 REQUIREMENTS.TXT</span>
+          <button class="dl-btn t" style="padding:.35rem .9rem;font-size:.65rem;" onclick="dlReqs()">⬇ DOWNLOAD</button>
+        </div>
+        <div class="req-bdy">
+          <div class="req-cmd">${esc(r.requirementsTxt)}</div>
+        </div>
+      </div>`;
+    window._reqsTxt=r.requirementsTxt;
+  }
+
+  // Download row
+  const dr=document.getElementById('dlRow'); dr.innerHTML='';
+  if(!isFolder&&r.fixedCode) dr.innerHTML+=`<button class="dl-btn p" onclick="dlFixed()">⬇ DOWNLOAD FIXED FILE</button>`;
+  if(isFolder&&r.fixedFiles&&r.fixedFiles.length) dr.innerHTML+=`<button class="dl-btn p" onclick="dlFolder()">⬇ DOWNLOAD FIXED PROJECT (.ZIP)</button>`;
+  if(r.requirementsTxt) dr.innerHTML+=`<button class="dl-btn t" onclick="dlReqs()">⬇ REQUIREMENTS.TXT</button>`;
+  dr.innerHTML+=`<button class="dl-btn q" onclick="dlReport()">⬇ SCAN REPORT (.TXT)</button>`;
+}
+
+/* ════ TOGGLES ════ */
+function togIssue(i){
+  const b=document.getElementById('ibdy'+i), t=document.getElementById('tog'+i);
+  const o=b.classList.toggle('open'); t.textContent=o?'▲ CLOSE':'▼ DETAILS';
+}
+function togFFI(i){document.getElementById('ffib'+i).classList.toggle('open');}
+
+/* ════ COPY COMMAND ════ */
+function copyCmd(el,cmd){
+  navigator.clipboard.writeText(cmd).then(()=>{
+    const orig=el.textContent; el.textContent='✓ COPIED!';
+    el.style.borderColor='var(--accent3)'; el.style.color='var(--accent3)';
+    setTimeout(()=>{el.textContent=orig;el.style.borderColor='';el.style.color='';},1500);
+  });
+}
+
+/* ════ DOWNLOADS ════ */
+function dlFixed(){
+  const blob=new Blob([window._fixedCode||''],{type:'text/plain'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='fixed_'+(window._fixedName||'code.txt'); a.click();
+}
+async function dlFolder(){
+  const zip=new JSZip();
+  (window._fixedFiles||[]).forEach(f=>{if(f.path&&f.fixedContent)zip.file(f.path,f.fixedContent);});
+  if(window._reqsTxt) zip.file('requirements.txt',window._reqsTxt);
+  const blob=await zip.generateAsync({type:'blob'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='project_fixed.zip'; a.click();
+}
+function dlReqs(){
+  const blob=new Blob([window._reqsTxt||''],{type:'text/plain'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='requirements.txt'; a.click();
+}
+function dlReport(){
+  const r=scanResult||{}, issues=r.issues||[], cross=r.crossFileIssues||[];
+  let txt=`CODESCAN REPORT\n${'='.repeat(50)}\nGenerated: ${new Date().toISOString()}\nBy: Akshay Borase & Aditya Wagh\nEngine: Google Gemini Flash\n\n`;
+  txt+=`SUMMARY\n${'-'.repeat(40)}\n`;
+  ['critical','high','medium','low'].forEach(s=>{const c=issues.filter(i=>i.severity===s).length;if(c)txt+=`${s.toUpperCase()}: ${c}\n`;});
+  if(cross.length) txt+=`CROSS-FILE ISSUES: ${cross.length}\n`;
+  txt+=`\nISSUES\n${'-'.repeat(40)}\n`;
+  issues.forEach((iss,i)=>{
+    txt+=`\n[${i+1}] [${(iss.severity||'').toUpperCase()}] ${iss.title}\n`;
+    if(iss.file) txt+=`File: ${iss.file}${iss.line?':'+iss.line:''}\n`;
+    txt+=`${iss.description}\n`;
+    if(iss.fix) txt+=`FIX:\n${iss.fix}\n`;
+    txt+='-'.repeat(40)+'\n';
+  });
+  if(cross.length){
+    txt+=`\nCROSS-FILE ISSUES\n${'-'.repeat(40)}\n`;
+    cross.forEach(c=>txt+=`${c.title}\n${c.description}\n\n`);
+  }
+  const missing=[...((scanResult||{}).missingAssets||[]),...(window._missing||[])].filter((v,i,a)=>a.indexOf(v)===i);
+  if(missing.length){txt+=`\nMISSING FILES\n${'-'.repeat(40)}\n`;missing.forEach(m=>txt+=`⚠ ${m}\n`);}
+  if((r.installSteps||[]).length){
+    txt+=`\nINSTALL STEPS\n${'-'.repeat(40)}\n`;
+    r.installSteps.forEach(s=>{ txt+=`${s.step}. ${s.title}\n   ${s.description}\n`; if(s.command)txt+=`   Command: ${s.command}\n`; txt+='\n'; });
+  }
+  if(window._reqsTxt){txt+=`\nREQUIREMENTS.TXT\n${'-'.repeat(40)}\n${window._reqsTxt}\n`;}
+  const blob=new Blob([txt],{type:'text/plain'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='codescan_report.txt'; a.click();
+}
+
+function esc(s){if(typeof s!=='string')s=String(s||'');return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* ════ SCROLL REVEAL ════ */
+const io=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible');}),{threshold:.1});
+document.querySelectorAll('.reveal').forEach(r=>io.observe(r));
+</script>
+</body>
+</html>
