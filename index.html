@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>CodeScan — Find Bugs Before They Find You</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<title>TeamDrag · CodeScan — Find Bugs Before They Find You</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;700&family=Rajdhani:wght@600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 /* ════ THEME SYSTEM ════ */
@@ -354,6 +354,80 @@ footer{border-top:1px solid var(--border);padding:2.5rem clamp(1.5rem,5vw,4rem);
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--border);}
+
+/* ════ TEAMDRAG HERO BADGE ════ */
+.teamdrag-wrapper{
+  display:flex;flex-direction:column;align-items:center;gap:0;
+  margin-bottom:2.2rem;animation:fadeUp .7s ease both;
+}
+.teamdrag-label{
+  font-family:'Share Tech Mono',monospace;font-size:.65rem;letter-spacing:6px;
+  text-transform:uppercase;color:var(--muted);margin-bottom:.6rem;
+  display:flex;align-items:center;gap:.5rem;
+}
+.teamdrag-label::before,.teamdrag-label::after{
+  content:'';display:inline-block;width:32px;height:1px;background:linear-gradient(90deg,transparent,var(--muted));
+}
+.teamdrag-label::after{background:linear-gradient(90deg,var(--muted),transparent);}
+.teamdrag-name{
+  font-family:'Orbitron',sans-serif;font-size:clamp(2.2rem,6vw,4.8rem);
+  font-weight:900;letter-spacing:8px;text-transform:uppercase;
+  background:linear-gradient(135deg,#00d4ff 0%,#ffffff 40%,#ff4c6a 70%,#00d4ff 100%);
+  background-size:300% 300%;
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  animation:teamdrag-shimmer 4s ease infinite,fadeUp .7s ease both;
+  position:relative;filter:drop-shadow(0 0 30px rgba(0,212,255,.35));
+  line-height:1;
+}
+[data-theme="light"] .teamdrag-name{
+  background:linear-gradient(135deg,#0076a8 0%,#000 40%,#d1003c 70%,#0076a8 100%);
+  background-size:300% 300%;
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:none;
+}
+@keyframes teamdrag-shimmer{
+  0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}
+}
+.teamdrag-underline{
+  position:relative;height:3px;width:100%;margin-top:.5rem;overflow:visible;
+}
+.teamdrag-underline::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,var(--accent),var(--accent2),var(--accent),transparent);
+  animation:teamdrag-line 3s ease infinite;
+}
+@keyframes teamdrag-line{
+  0%,100%{transform:scaleX(.6);opacity:.7;}50%{transform:scaleX(1);opacity:1;}
+}
+.teamdrag-tagline{
+  font-family:'Rajdhani',sans-serif;font-size:clamp(.75rem,1.5vw,.95rem);
+  letter-spacing:4px;color:var(--muted);text-transform:uppercase;font-weight:600;
+  margin-top:.75rem;
+}
+.teamdrag-tagline span{color:var(--accent);}
+
+/* Glitch effect on hover */
+.teamdrag-name:hover{animation:teamdrag-shimmer 4s ease infinite,glitch .4s steps(1) infinite;}
+@keyframes glitch{
+  0%,100%{clip-path:none;transform:none;}
+  20%{clip-path:polygon(0 20%,100% 20%,100% 30%,0 30%);transform:translateX(-2px);}
+  40%{clip-path:polygon(0 70%,100% 70%,100% 80%,0 80%);transform:translateX(2px);}
+  60%{clip-path:none;transform:none;}
+}
+
+/* ════ DOWNLOAD FOLDER BUTTON ENHANCEMENT ════ */
+.dl-btn.folder{
+  background:linear-gradient(135deg,rgba(0,212,255,.15),rgba(57,255,20,.15));
+  color:var(--accent3);border:1px solid var(--accent3);
+  clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+}
+.dl-btn.folder:hover{
+  background:linear-gradient(135deg,rgba(0,212,255,.25),rgba(57,255,20,.25));
+  box-shadow:0 0 20px rgba(57,255,20,.3);
+}
+
+/* ════ MARQUEE TEAMDRAG HIGHLIGHT ════ */
+.mq-team{color:var(--accent);font-weight:900;font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:3px;}
 </style>
 </head>
 <body>
@@ -378,7 +452,14 @@ footer{border-top:1px solid var(--border);padding:2.5rem clamp(1.5rem,5vw,4rem);
 <section class="hero">
   <div class="hero-glow"></div>
   <div>
-    <p class="hero-tag">// AI-POWERED CODE DEBUGGER &nbsp;·&nbsp; GEMINI ENGINE &nbsp;·&nbsp; AKSHAY BORASE & ADITYA WAGH</p>
+    <!-- TEAMDRAG PREMIUM BADGE -->
+    <div class="teamdrag-wrapper">
+      <div class="teamdrag-label">PRESENTED BY</div>
+      <div class="teamdrag-name" id="teamdragName">TEAMDRAG</div>
+      <div class="teamdrag-underline"></div>
+      <div class="teamdrag-tagline">AKSHAY BORASE <span>&amp;</span> ADITYA WAGH</div>
+    </div>
+    <p class="hero-tag">// AI-POWERED CODE DEBUGGER &nbsp;·&nbsp; GEMINI 2.5 FLASH &nbsp;·&nbsp; ZERO BACKEND</p>
     <h1>CODE<br/><span class="highlight">SCAN</span></h1>
     <p class="hero-sub">Find bugs before they find you.<br/>
     Paste code or drop a folder → <strong>instant AI analysis</strong>, security audits, and <span class="ac2">clean error-free code</span> back.</p>
@@ -423,7 +504,7 @@ footer{border-top:1px solid var(--border);padding:2.5rem clamp(1.5rem,5vw,4rem);
   <!-- API KEY -->
   <div class="api-notice" style="margin-top:2rem;">
     <strong>🔑 GEMINI API KEY</strong>
-    <input class="api-key-input" type="password" id="apiKeyInput" placeholder="Paste your free Gemini API key here (get one at aistudio.google.com)"/>
+    <input class="api-key-input" type="password" id="apiKeyInput" placeholder="Paste your free Gemini API key here (aistudio.google.com) — uses Gemini 2.5 Flash"/>
     <button class="api-key-btn" onclick="saveApiKey()">SAVE KEY</button>
     <span id="apiKeyStatus" style="font-size:.68rem;letter-spacing:1px;color:var(--muted);"></span>
   </div>
@@ -555,7 +636,7 @@ function login(user, pass) {
   <h2 class="sec-title">SEE IT IN <span class="ac">ACTION</span></h2>
   <p class="sec-body">Watch CodeScan's Gemini-powered analysis pipeline — from project upload to downloadable fixed ZIP in seconds.</p>
   <div class="terminal">
-    <div class="term-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="term-title">CODESCAN — GEMINI ENGINE v3.0 — AKSHAY & ADITYA</span></div>
+    <div class="term-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="term-title">CODESCAN — GEMINI 2.5 FLASH ENGINE — TEAMDRAG · AKSHAY & ADITYA</span></div>
     <div class="term-body">
       <div><span class="tp">$</span> <span class="tc">codescan analyze --engine gemini-flash --folder ./myproject</span></div>
       <div><span class="ti">→ Indexing 14 files across 4 directories...</span></div>
@@ -589,7 +670,7 @@ function login(user, pass) {
     <p class="sec-body">Lean, fast, entirely client-side architecture — deployed instantly, no backend required.</p>
     <div class="tech-grid">
       <div class="tech-pill">HTML5</div><div class="tech-pill">CSS3</div><div class="tech-pill">JavaScript ES2024</div>
-      <div class="tech-pill">Google Gemini Flash API</div><div class="tech-pill">JSZip</div>
+      <div class="tech-pill">Google Gemini 2.5 Flash</div><div class="tech-pill">JSZip</div>
       <div class="tech-pill">GitHub Pages</div><div class="tech-pill">Dark / Light Mode</div>
       <div class="tech-pill">Responsive Design</div><div class="tech-pill">Zero Backend</div>
     </div>
@@ -635,7 +716,7 @@ function login(user, pass) {
 
 <footer>
   <div class="foot-logo">CODE<span>SCAN</span></div>
-  <div class="foot-copy">HACKATHON PROJECT &nbsp;·&nbsp; 2026 &nbsp;·&nbsp; AKSHAY BORASE & ADITYA WAGH &nbsp;·&nbsp; GEMINI POWERED</div>
+  <div class="foot-copy">TEAMDRAG &nbsp;·&nbsp; HACKATHON PROJECT &nbsp;·&nbsp; 2026 &nbsp;·&nbsp; AKSHAY BORASE & ADITYA WAGH &nbsp;·&nbsp; GEMINI 2.5 FLASH</div>
 </footer>
 
 <script>
@@ -658,13 +739,14 @@ function toggleTheme(){
 /* ════ MARQUEE ════ */
 (function(){
   const track=document.getElementById('mqTrack');
-  const items=['TEAM MEMBERS','AKSHAY BORASE & ADITYA WAGH','·','CODESCAN','·','HACKATHON 2026','·',
-    'TEAM MEMBERS','AKSHAY BORASE & ADITYA WAGH','·','CODESCAN','·','HACKATHON 2026','·',
-    'TEAM MEMBERS','AKSHAY BORASE & ADITYA WAGH','·','CODESCAN','·','HACKATHON 2026','·',
-    'TEAM MEMBERS','AKSHAY BORASE & ADITYA WAGH','·','CODESCAN','·','HACKATHON 2026','·'];
+  const items=['TEAMDRAG','·','AKSHAY BORASE & ADITYA WAGH','·','CODESCAN','·','HACKATHON 2026','·',
+    'TEAMDRAG','·','AKSHAY BORASE & ADITYA WAGH','·','CODESCAN','·','HACKATHON 2026','·',
+    'TEAMDRAG','·','AKSHAY BORASE & ADITYA WAGH','·','CODESCAN','·','HACKATHON 2026','·',
+    'TEAMDRAG','·','AKSHAY BORASE & ADITYA WAGH','·','CODESCAN','·','HACKATHON 2026','·'];
   items.forEach(it=>{
     const s=document.createElement('span'); s.className='mq-item';
-    if(it==='AKSHAY BORASE & ADITYA WAGH') s.innerHTML=`<span class="mq-leader">${it}</span>`;
+    if(it==='TEAMDRAG') s.innerHTML=`<span class="mq-team">${it}</span>`;
+    else if(it==='AKSHAY BORASE & ADITYA WAGH') s.innerHTML=`<span class="mq-leader">${it}</span>`;
     else if(it==='·') s.innerHTML=`<span class="mq-sep">◆</span>`;
     else s.textContent=it;
     track.appendChild(s);
@@ -1034,9 +1116,13 @@ function renderResults(r,isFolder){
   // Download row
   const dr=document.getElementById('dlRow'); dr.innerHTML='';
   if(!isFolder&&r.fixedCode) dr.innerHTML+=`<button class="dl-btn p" onclick="dlFixed()">⬇ DOWNLOAD FIXED FILE</button>`;
-  if(isFolder&&r.fixedFiles&&r.fixedFiles.length) dr.innerHTML+=`<button class="dl-btn p" onclick="dlFolder()">⬇ DOWNLOAD FIXED PROJECT (.ZIP)</button>`;
+  if(isFolder&&r.fixedFiles&&r.fixedFiles.length) dr.innerHTML+=`<button class="dl-btn folder" onclick="dlFolder()">📁 DOWNLOAD FIXED PROJECT (.ZIP)</button>`;
   if(r.requirementsTxt) dr.innerHTML+=`<button class="dl-btn t" onclick="dlReqs()">⬇ REQUIREMENTS.TXT</button>`;
   dr.innerHTML+=`<button class="dl-btn q" onclick="dlReport()">⬇ SCAN REPORT (.TXT)</button>`;
+  // Always show folder zip option if we have any fixed files regardless of mode
+  if(!isFolder&&r.fixedCode){
+    dr.innerHTML+=`<button class="dl-btn folder" onclick="dlSingleAsZip()">📦 DOWNLOAD AS ZIP</button>`;
+  }
 }
 
 /* ════ TOGGLES ════ */
@@ -1071,9 +1157,22 @@ function dlReqs(){
   const blob=new Blob([window._reqsTxt||''],{type:'text/plain'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='requirements.txt'; a.click();
 }
+async function dlSingleAsZip(){
+  const zip=new JSZip();
+  const name=window._fixedName||'fixed_code.txt';
+  zip.file(name, window._fixedCode||'');
+  if(window._reqsTxt) zip.file('requirements.txt', window._reqsTxt);
+  const scanResult_local=scanResult||{};
+  const issues=scanResult_local.issues||[];
+  let report=`CODESCAN REPORT\n${'='.repeat(50)}\nGenerated: ${new Date().toISOString()}\nBy TeamDrag: Akshay Borase & Aditya Wagh\nEngine: Google Gemini 2.5 Flash\n\n`;
+  ['critical','high','medium','low'].forEach(s=>{const c=issues.filter(i=>i.severity===s).length;if(c)report+=`${s.toUpperCase()}: ${c}\n`;});
+  zip.file('codescan_report.txt', report);
+  const blob=await zip.generateAsync({type:'blob'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='codescan_fixed.zip'; a.click();
+}
 function dlReport(){
   const r=scanResult||{}, issues=r.issues||[], cross=r.crossFileIssues||[];
-  let txt=`CODESCAN REPORT\n${'='.repeat(50)}\nGenerated: ${new Date().toISOString()}\nBy: Akshay Borase & Aditya Wagh\nEngine: Google Gemini Flash\n\n`;
+  let txt=`CODESCAN REPORT\n${'='.repeat(50)}\nGenerated: ${new Date().toISOString()}\nBy TeamDrag: Akshay Borase & Aditya Wagh\nEngine: Google Gemini 2.5 Flash\n\n`;
   txt+=`SUMMARY\n${'-'.repeat(40)}\n`;
   ['critical','high','medium','low'].forEach(s=>{const c=issues.filter(i=>i.severity===s).length;if(c)txt+=`${s.toUpperCase()}: ${c}\n`;});
   if(cross.length) txt+=`CROSS-FILE ISSUES: ${cross.length}\n`;
