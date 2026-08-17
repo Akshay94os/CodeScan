@@ -1,5 +1,5 @@
 # CodeScan
-
+ 
 ![CodeScan Logo Placeholder](https://via.placeholder.com/150x50?text=CodeScan)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
